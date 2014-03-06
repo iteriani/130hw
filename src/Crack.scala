@@ -77,23 +77,41 @@ object Crack {
   // scala> Crack("passwd", "words", "soln.1")
   // goto> scala Crack passwd words soln.1
   def apply(pwdFile: String, wordsFile: String, outFile: String) : Unit = {
-    val users = Source.fromFile(pwdFile).getLines().map(Entry.apply)
-    val words = Source.fromFile(wordsFile).getLines().toList.sortBy(_.length()).toIterator
+    val users = Lines.list(pwdFile).map(Entry.apply)
+    val words = candidateWords(wordsFile).toList.sortBy(_.length())
     val writer = new PrintWriter(new File(outFile))
-    for(word <- words){
+    var foundUsers = List[String]()
+    for(b <- 0 until words.length){
       for(user <- users){
-        if(crackPW(word,user.password) == true){
-          writer.write(user.account + "=" + word)
+          val wordList = transformReverse(words(b))
+          if(foundUsers.contains(user.account) == false && crackPW(wordList, user.password)==true){
+            foundUsers = user.account :: foundUsers
+            println(user.account+"="+words(b))
+            writer.write(user.account+"="+words(b) +"\n")
+            writer.flush()
+          }
+      }
+    }
+    println("Finished initial pass. Running through transformations.  ")
+    for(b <- 0 until words.length){
+      for(user <- users){
+        val wordList = (transformCapitalize(words(b)).toList ::: transformDigits(words(b)).toList).toIterator
+        if(foundUsers.contains(user.account) == false && crackPW(wordList, user.password)==true){
+          foundUsers = user.account :: foundUsers
+          println(user.account+"="+words(b))
+          writer.write((user.account+"="+words(b) + "\n"))
+          writer.flush()
         }
       }
     }
-  }
 
-  def crackPW(word:String, password:String):Boolean = {
-    println("working on " + word)
-    val wordCheck = transformCapitalize(word).toList ::: transformReverse(word).toList ::: transformDigits(word).toList
-    for(enc <- wordCheck.toIterator){
-      if(checkPassword(password, enc) == true){
+  }
+/*transformCapitalize(word).toList ::: transformDigits(word).toList*/
+
+  def crackPW(word:Iterator[String], password:String):Boolean = {
+
+    for(enc <- word){
+      if(checkPassword(enc, password) == true){
         return true
       }
     }
@@ -101,10 +119,9 @@ object Crack {
   }
 
 
-
   def main(args: Array[String]) = {
     println("Begin: Cracking Passwords")
-    apply("src/passwd", "src/words", "soln.1");
+    apply("src/passwd", "words", "solution.txt");
     //apply(args(0), args(1), args(2))
     println("Done: Cracking Passwords")
   }
